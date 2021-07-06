@@ -1,0 +1,15 @@
+// similar thing in tibasic. btw this is an illegal comment
+ClrHome
+0→Z
+Disp "PRESS ANY KEY"
+Disp "0 TO QUIT"
+While 1
+Disp Z
+Repeat Ans
+getKey
+End
+If Ans=102
+Return
+1+Z→Z
+ClrHome
+End
