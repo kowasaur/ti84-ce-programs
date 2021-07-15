@@ -4,6 +4,8 @@
 
 #define HEIGHT 10
 #define WIDTH 26
+#define DEFAULT_Y 5
+#define DEFAULT_X 13
 
 // This might be right idk. I did it cause vscode was giving a squiggly
 typedef unsigned int uint24_t;
@@ -15,6 +17,7 @@ Destroy - 2
 Quit - 0
 */
 
+sk_key_t key;
 char rendered_char[HEIGHT][WIDTH];
 
 void renderText(char c[WIDTH], uint8_t y, uint8_t x) {
@@ -43,8 +46,35 @@ void changeCursor(int8_t change_y, int8_t change_x) {
   }
 }
 
+bool displayHelp() {
+  os_ClrHome();
+  os_DisableCursor();
+  
+  renderText("Minesweeper Controls", 0, 0);
+  renderText("0 - Quit", 2, 0);
+  renderText("1 - Flag", 3, 0);
+  renderText("2 - Destroy", 4, 0);
+  renderText("3 - Help", 5, 0);
+  renderText("Press anything", 8, 0);
+  renderText("to continue", 9, 0);
+
+  while (!(key = os_GetCSC()));
+  if (key == sk_0) return false;
+
+  // Render game
+  renderText("Press 3 for help       ", 0, 0);
+  for (uint8_t i = 1; i < HEIGHT; i++) {
+    for (uint8_t j = 0; j < WIDTH; j++) {
+      renderChar(rendered_char[i][j], i, j);
+    }
+  }
+
+  os_SetCursorPos(DEFAULT_Y, DEFAULT_X);
+  os_EnableCursor();
+  return true;
+}
+
 bool startedGame() {
-  sk_key_t key;
   while (true) {
     while (!(key = os_GetCSC())); // wait for key
     switch (key) {
@@ -64,6 +94,9 @@ bool startedGame() {
         return false;
       case sk_2:
         return true;
+      case sk_3:
+        if (!displayHelp()) return false;
+        break;
       default:
         break;
     }
@@ -75,8 +108,7 @@ int main() {
   os_ClrHome();
   os_EnableCursor(); // Visible cursor
 
-  uint24_t y = 1, x = 0; // Default cursor position
-  sk_key_t key;
+  uint24_t y = DEFAULT_Y, x = DEFAULT_X; // Default cursor position
   bool is_mine[HEIGHT][WIDTH];
 
   renderText("Press 3 for help", 0, 0);
@@ -104,7 +136,6 @@ int main() {
     }
   }
   
-
   while (true) {
     while (!(key = os_GetCSC())); // wait for key
     switch (key) {
@@ -123,6 +154,9 @@ int main() {
       case sk_0:
         return 0;
       case sk_2:
+        break;
+      case sk_3:
+        if (!displayHelp()) return 0;
         break;
       default:
         break;
