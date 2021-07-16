@@ -37,6 +37,10 @@ uint safeAdd(uint base, uint add, uint max) {
   return result > max ? max : result;
 }
 
+bool isDigit(char c) {
+  return c >= '0' && c <= '9';
+}
+
 // Check if numbers are close to equal
 bool isClose(uint8_t n, uint comp) {
   return n >= safeSub(comp, randInt(1, 3)) && n <= comp + randInt(1, 3);
@@ -202,6 +206,7 @@ int main() {
   // }
   
   while (true) {
+    char current_char = rendered_char[curY][curX];
     while (!(key = os_GetCSC())); // wait for key
     switch (key) {
       case sk_Left:
@@ -219,11 +224,28 @@ int main() {
       case sk_0:
         return 0;
       case sk_1: // flagging
-        if (rendered_char[curY][curX] == ' ') renderChar('F', curY, curX);
-        else if (rendered_char[curY][curX] == 'F') renderChar(' ', curY, curX);
+        if (current_char == ' ') renderChar('F', curY, curX);
+        else if (current_char == 'F') renderChar(' ', curY, curX);
         break;
       case sk_2:
         if(!destroy(curY, curX)) return 0;
+        break;
+      case sk_3:
+        // char selected_char = rendered_char[curY][curX];
+        if (!isDigit(current_char)) break;
+
+        uint8_t surrounding_flags = 0;
+        for (uint8_t row = safeSub(curY, 1); row <= safeAdd(curY, 1, HEIGHT - 1); row++) {
+          for (uint8_t col = safeSub(curX, 1); col <= safeAdd(curX, 1, WIDTH - 1); col++) {
+            if (rendered_char[row][col] == 'F') surrounding_flags++;
+          }
+        }
+        if (surrounding_flags + '0' != current_char) break;
+        for (uint8_t row = safeSub(curY, 1); row <= safeAdd(curY, 1, HEIGHT - 1); row++) {
+          for (uint8_t col = safeSub(curX, 1); col <= safeAdd(curX, 1, WIDTH - 1); col++) {
+            if (!destroy(row, col)) return 0;
+          }
+        }
         break;
       case sk_4:
         if (!help()) return 0;
