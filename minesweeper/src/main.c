@@ -111,6 +111,16 @@ bool startedGame() {
   }
 }
 
+void destroy() {
+  uint y, x;
+  os_GetCursorPos(&y, &x);
+
+  // if (mine) {
+  //   /* code */
+  // }
+  
+}
+
 int main() {
   srandom(rtc_Time());
   os_ClrHome();
