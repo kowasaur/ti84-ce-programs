@@ -21,14 +21,23 @@ char rendered_char[HEIGHT][WIDTH];
 bool is_mine[HEIGHT][WIDTH];
 uint curY = DEFAULT_Y, curX = DEFAULT_X; // Default cursor position
 
+// So that it's never negative
+uint safeSub(uint base, uint sub) {
+  return sub >= base ? 0 : base - sub;
+}
+
+// Add up to a maximum value
+uint safeAdd(uint base, uint add, uint max) {
+  uint result = base + add;
+  return result > max ? max : result;
+}
+
 // Check if numbers are equal with +-1 error
 bool isClose(uint8_t n, uint comp) {
-  if (comp == 0) return n == comp || n == comp + 1;
-  return n >= comp - 1 && n <= comp + 1;
+  return n >= safeSub(comp, 1) && n <= comp + 1;
 }
 
 void renderText(char str[WIDTH], uint8_t y, uint8_t x) {
-  os_GetCursorPos(&curY, &curX);
   os_SetCursorPos(y, x);
   os_PutStrLine(str);
   // Put cursor back to where it was
@@ -50,12 +59,14 @@ void changeCursor(int8_t change_y, int8_t change_x) {
   x += change_x;
   if (!(y == 0 || y == HEIGHT || x >= WIDTH)) {
     os_SetCursorPos(y, x);
+    curY = y;
+    curX = x;
   }
 }
 
 bool help() {
-  os_ClrHome();
   os_DisableCursor();
+  os_ClrHome();
   
   renderText("Minesweeper Controls", 0, 0);
   renderText("0 - Quit", 2, 0);
@@ -76,7 +87,7 @@ bool help() {
     }
   }
 
-  os_SetCursorPos(DEFAULT_Y, DEFAULT_X);
+  os_SetCursorPos(curY, curX);
   os_EnableCursor();
   return true;
 }
@@ -111,14 +122,24 @@ bool startedGame() {
   }
 }
 
-void destroy() {
-  uint y, x;
-  os_GetCursorPos(&y, &x);
-
-  // if (mine) {
-  //   /* code */
-  // }
+bool destroy() {
+  if (is_mine[curY][curX]) {
+    os_DisableCursor();
+    os_ClrHome();
+    renderText("You died", 5, 8);
+    while (!os_GetCSC());
+    return false;
+  }
+  uint8_t surrounding_mines = 0;
+  for (uint8_t row = safeSub(curY, 1); row <= safeAdd(curY, 1, HEIGHT - 1); row++) {
+    for (uint8_t col = safeSub(curX, 1); col <= safeAdd(curX, 1, WIDTH - 1); col++) {
+      if (is_mine[row][col]) surrounding_mines++;
+    }
+  }
+  // + '0' converts to digit char
+  renderChar(surrounding_mines + '0', curY, curX);
   
+  return true;
 }
 
 int main() {
@@ -136,7 +157,6 @@ int main() {
   os_SetCursorPos(DEFAULT_Y, DEFAULT_X);
 
   if (!startedGame()) return 0;
-  os_GetCursorPos(&curY, &curX);
   // Generate mines
   for (uint8_t i = 1; i < HEIGHT; i++) {
     for (uint8_t j = 0; j < WIDTH; j++) {
@@ -148,8 +168,8 @@ int main() {
   for (uint8_t i = 1; i < HEIGHT; i++) {
     for (uint8_t j = 0; j < WIDTH; j++) {
       bool m = is_mine[i][j];
-      if (m) renderChar('1', i, j);
-      else renderChar('0', i, j);
+      if (m) renderChar('M', i, j);
+      else renderChar(' ', i, j);
     }
   }
   
@@ -171,6 +191,7 @@ int main() {
       case sk_0:
         return 0;
       case sk_2:
+        if(!destroy()) return 0;
         break;
       case sk_3:
         if (!help()) return 0;
