@@ -4,10 +4,13 @@
 
 #define HEIGHT 10
 #define WIDTH 26
+#define TILES 234 // 9 * 26
 #define DEFAULT_Y 5
 #define DEFAULT_X 13
 
 typedef unsigned int uint;
+
+// TODO: https://www.reddit.com/r/Minesweeper/comments/m2x9d6/rules_for_mine_spawning/gqmb02l
 
 /* Controls
 Help - 3
@@ -16,10 +19,12 @@ Destroy - 2
 Quit - 0
 */
 
+// It's probably bad that all of these are global but whatever
 sk_key_t key;
 char rendered_char[HEIGHT][WIDTH];
 bool is_mine[HEIGHT][WIDTH];
 uint curY = DEFAULT_Y, curX = DEFAULT_X; // Default cursor position
+uint8_t num_mines = 0, num_destroyed = 0;
 
 // So that it's never negative
 uint safeSub(uint base, uint sub) {
@@ -32,9 +37,9 @@ uint safeAdd(uint base, uint add, uint max) {
   return result > max ? max : result;
 }
 
-// Check if numbers are equal with +-1 error
+// Check if numbers are close to equal
 bool isClose(uint8_t n, uint comp) {
-  return n >= safeSub(comp, 1) && n <= comp + 1;
+  return n >= safeSub(comp, randInt(1, 3)) && n <= comp + randInt(1, 3);
 }
 
 void renderText(char str[WIDTH], uint8_t y, uint8_t x) {
@@ -72,7 +77,8 @@ bool help() {
   renderText("0 - Quit", 2, 0);
   renderText("1 - Flag", 3, 0);
   renderText("2 - Destroy", 4, 0);
-  renderText("3 - Help", 5, 0);
+  renderText("3 - Num/Flag Destroy", 5, 0);
+  renderText("4 - Help", 6, 0);
   renderText("Press anything", 8, 0);
   renderText("to continue", 9, 0);
 
@@ -80,7 +86,7 @@ bool help() {
   if (key == sk_0) return false;
 
   // Render game
-  renderText("Press 3 for help       ", 0, 0);
+  renderText("Press 4 for help       ", 0, 0);
   for (uint8_t i = 1; i < HEIGHT; i++) {
     for (uint8_t j = 0; j < WIDTH; j++) {
       renderChar(rendered_char[i][j], i, j);
@@ -113,7 +119,7 @@ bool startedGame() {
         return false;
       case sk_2:
         return true;
-      case sk_3:
+      case sk_4:
         if (!help()) return false;
         break;
       default:
@@ -122,22 +128,41 @@ bool startedGame() {
   }
 }
 
-bool destroy() {
-  if (is_mine[curY][curX]) {
-    os_DisableCursor();
-    os_ClrHome();
-    renderText("You died", 5, 8);
-    while (!os_GetCSC());
+void endGame(char msg[WIDTH - 8]) {
+  os_DisableCursor();
+  os_ClrHome();
+  renderText(msg, 5, 8);
+  while (!os_GetCSC());
+}
+
+bool destroy(uint y, uint x) {
+  if (rendered_char[y][x] != ' ') return true;
+  
+  if (is_mine[y][x]) {
+    endGame("You died");
     return false;
   }
   uint8_t surrounding_mines = 0;
-  for (uint8_t row = safeSub(curY, 1); row <= safeAdd(curY, 1, HEIGHT - 1); row++) {
-    for (uint8_t col = safeSub(curX, 1); col <= safeAdd(curX, 1, WIDTH - 1); col++) {
+  for (uint8_t row = safeSub(y, 1); row <= safeAdd(y, 1, HEIGHT - 1); row++) {
+    for (uint8_t col = safeSub(x, 1); col <= safeAdd(x, 1, WIDTH - 1); col++) {
       if (is_mine[row][col]) surrounding_mines++;
     }
   }
   // + '0' converts to digit char
-  renderChar(surrounding_mines + '0', curY, curX);
+  renderChar(surrounding_mines + '0', y, x);
+  if (surrounding_mines == 0) {
+    for (uint8_t row = safeSub(y, 1); row <= safeAdd(y, 1, HEIGHT - 1); row++) {
+      for (uint8_t col = safeSub(x, 1); col <= safeAdd(x, 1, WIDTH - 1); col++) {
+        if (!is_mine[row][col]) destroy(row, col);
+      }
+    }
+  }
+  
+  num_destroyed++;
+  if (num_destroyed == TILES - num_mines) {
+    endGame("You won!");
+    return false;
+  }
   
   return true;
 }
@@ -147,7 +172,7 @@ int main() {
   os_ClrHome();
   os_EnableCursor(); // Visible cursor
 
-  renderText("Press 3 for help", 0, 0);
+  renderText("Press 4 for help", 0, 0);
   // Render spaces so that cursor cleanup works
   for (uint8_t i = 1; i < HEIGHT; i++) {
     for (uint8_t j = 0; j < WIDTH; j++) {
@@ -157,21 +182,24 @@ int main() {
   os_SetCursorPos(DEFAULT_Y, DEFAULT_X);
 
   if (!startedGame()) return 0;
+
   // Generate mines
   for (uint8_t i = 1; i < HEIGHT; i++) {
     for (uint8_t j = 0; j < WIDTH; j++) {
       if (isClose(i, curY) && isClose(j, curX)) is_mine[i][j] = false;
       else is_mine[i][j] = randInt(1, 10) <= 3;
+      if (is_mine[i][j]) num_mines++;
     }
   }
+  destroy(curY, curX);
   // Render mines (for debugging)
-  for (uint8_t i = 1; i < HEIGHT; i++) {
-    for (uint8_t j = 0; j < WIDTH; j++) {
-      bool m = is_mine[i][j];
-      if (m) renderChar('M', i, j);
-      else renderChar(' ', i, j);
-    }
-  }
+  // for (uint8_t i = 1; i < HEIGHT; i++) {
+  //   for (uint8_t j = 0; j < WIDTH; j++) {
+  //     bool m = is_mine[i][j];
+  //     if (m) renderChar('M', i, j);
+  //     else renderChar(' ', i, j);
+  //   }
+  // }
   
   while (true) {
     while (!(key = os_GetCSC())); // wait for key
@@ -190,10 +218,14 @@ int main() {
         break;
       case sk_0:
         return 0;
-      case sk_2:
-        if(!destroy()) return 0;
+      case sk_1: // flagging
+        if (rendered_char[curY][curX] == ' ') renderChar('F', curY, curX);
+        else if (rendered_char[curY][curX] == 'F') renderChar(' ', curY, curX);
         break;
-      case sk_3:
+      case sk_2:
+        if(!destroy(curY, curX)) return 0;
+        break;
+      case sk_4:
         if (!help()) return 0;
         break;
       default:
