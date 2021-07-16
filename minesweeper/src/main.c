@@ -7,8 +7,7 @@
 #define DEFAULT_Y 5
 #define DEFAULT_X 13
 
-// This might be right idk. I did it cause vscode was giving a squiggly
-typedef unsigned int uint24_t;
+typedef unsigned int uint;
 
 /* Controls
 Help - 3
@@ -19,14 +18,21 @@ Quit - 0
 
 sk_key_t key;
 char rendered_char[HEIGHT][WIDTH];
+bool is_mine[HEIGHT][WIDTH];
+uint curY = DEFAULT_Y, curX = DEFAULT_X; // Default cursor position
 
-void renderText(char c[WIDTH], uint8_t y, uint8_t x) {
-  uint24_t cY, cX; // user cursor position
-  os_GetCursorPos(&cY, &cX);
+// Check if numbers are equal with +-1 error
+bool isClose(uint8_t n, uint comp) {
+  if (comp == 0) return n == comp || n == comp + 1;
+  return n >= comp - 1 && n <= comp + 1;
+}
+
+void renderText(char str[WIDTH], uint8_t y, uint8_t x) {
+  os_GetCursorPos(&curY, &curX);
   os_SetCursorPos(y, x);
-  os_PutStrLine(c);
+  os_PutStrLine(str);
   // Put cursor back to where it was
-  os_SetCursorPos(cY, cX);
+  os_SetCursorPos(curY, curX);
 }
 
 void renderChar(char c, uint8_t y, uint8_t x) {
@@ -36,7 +42,8 @@ void renderChar(char c, uint8_t y, uint8_t x) {
 }
 
 void changeCursor(int8_t change_y, int8_t change_x) {
-  uint24_t y, x;
+  // ! Don't use global variable here since it changes it
+  uint y, x;
   os_GetCursorPos(&y, &x);
   renderChar(rendered_char[y][x], y, x); // cleanup
   y += change_y;
@@ -46,7 +53,7 @@ void changeCursor(int8_t change_y, int8_t change_x) {
   }
 }
 
-bool displayHelp() {
+bool help() {
   os_ClrHome();
   os_DisableCursor();
   
@@ -74,6 +81,7 @@ bool displayHelp() {
   return true;
 }
 
+// Allow to move, quit and help before destroying anything
 bool startedGame() {
   while (true) {
     while (!(key = os_GetCSC())); // wait for key
@@ -95,7 +103,7 @@ bool startedGame() {
       case sk_2:
         return true;
       case sk_3:
-        if (!displayHelp()) return false;
+        if (!help()) return false;
         break;
       default:
         break;
@@ -108,9 +116,6 @@ int main() {
   os_ClrHome();
   os_EnableCursor(); // Visible cursor
 
-  uint24_t y = DEFAULT_Y, x = DEFAULT_X; // Default cursor position
-  bool is_mine[HEIGHT][WIDTH];
-
   renderText("Press 3 for help", 0, 0);
   // Render spaces so that cursor cleanup works
   for (uint8_t i = 1; i < HEIGHT; i++) {
@@ -118,16 +123,18 @@ int main() {
       renderChar(' ', i, j);
     }
   }
-  os_SetCursorPos(y, x);
+  os_SetCursorPos(DEFAULT_Y, DEFAULT_X);
 
   if (!startedGame()) return 0;
-  os_GetCursorPos(&y, &x);
+  os_GetCursorPos(&curY, &curX);
+  // Generate mines
   for (uint8_t i = 1; i < HEIGHT; i++) {
     for (uint8_t j = 0; j < WIDTH; j++) {
-      if (i == y && j == x) is_mine[i][j] = false;
-      else is_mine[i][j] = randInt(1, 5) == 1;
+      if (isClose(i, curY) && isClose(j, curX)) is_mine[i][j] = false;
+      else is_mine[i][j] = randInt(1, 10) <= 3;
     }
   }
+  // Render mines (for debugging)
   for (uint8_t i = 1; i < HEIGHT; i++) {
     for (uint8_t j = 0; j < WIDTH; j++) {
       bool m = is_mine[i][j];
@@ -156,7 +163,7 @@ int main() {
       case sk_2:
         break;
       case sk_3:
-        if (!displayHelp()) return 0;
+        if (!help()) return 0;
         break;
       default:
         break;
